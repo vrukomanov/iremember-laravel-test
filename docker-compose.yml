@@ -1,0 +1,70 @@
+version: "3.9"
+
+services:
+  nginx:
+    container_name: "iremember_nginx"
+    build:
+      context: .
+      dockerfile: .docker/nginx/Dockerfile
+      args:
+        - APP_CODE_PATH=${APP_CODE_PATH_CONTAINER:-/var/www/app}
+    ports:
+      - "${NGINX_HOST_HTTP_PORT:-80}:80"
+      - "${NGINX_HOST_HTTPS_PORT:-443}:443"
+    volumes:
+      - php_socket:/var/run/php
+      - ./src:${APP_CODE_PATH_CONTAINER:-/var/www/app}
+    depends_on:
+      - php
+    networks:
+      - iremember
+  php:
+    container_name: "iremember_php"
+    build:
+      context: .
+      dockerfile: .docker/php/Dockerfile
+      target: php_dev
+      args:
+        - APP_CODE_PATH=${APP_CODE_PATH_CONTAINER:-/var/www/app}
+        - PHP_IDE_CONFIG=serverName=${SERVER_NAME:-localhost}
+    volumes:
+      - php_socket:/var/run/php
+      - ./src:${APP_CODE_PATH_CONTAINER:-/var/www/app}
+    environment:
+      - PHP_IDE_CONFIG=serverName=${SERVER_NAME:-localhost}
+    extra_hosts:
+      # Ensure that host.docker.internal is correctly defined on Linux
+      - host.docker.internal:host-gateway
+    depends_on:
+      - mysql
+    networks:
+      - iremember
+
+  mysql:
+    container_name: "iremember_mysql"
+    build:
+      context: .
+      dockerfile: .docker/mysql/Dockerfile
+      args:
+        - MYSQL_DATABASE=${MYSQL_DATABASE:-application_db}
+        - MYSQL_USER=${MYSQL_USER:-user}
+        - MYSQL_PASSWORD=${MYSQL_PASSWORD:-password}
+    environment:
+      - MYSQL_DATABASE=${MYSQL_DATABASE:-application_db}
+      - MYSQL_USER=${MYSQL_USER:-user}
+      - MYSQL_PASSWORD=${MYSQL_PASSWORD:-password}
+      - MYSQL_ROOT_PASSWORD=${MYSQL_ROOT_PASSWORD:-rootpw}
+      - TZ=${TIMEZONE:-UTC}
+    volumes:
+      - .docker/mysql/data:/var/lib/mysql
+    networks:
+      - iremember
+    ports:
+      - "${MYSQL_HOST_PORT:-3306}:3306"
+
+volumes:
+  php_socket:
+
+networks:
+  iremember:
+    driver: bridge
